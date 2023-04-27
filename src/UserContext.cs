@@ -5,6 +5,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Primitives;
 using Microsoft.Net.Http.Headers;
+using Soenneker.Constants.Auth;
 using Soenneker.Exceptions.Suite;
 using Soenneker.Utils.UserContext.Abstract;
 
@@ -16,58 +17,57 @@ public class UserContext : IUserContext
 {
     public IHttpContextAccessor HttpContextAccessor { get; set; }
 
-    // These cached values should only last as long as the request
-    private string? _cachedUserId;
-    private string? _cachedUserEmail;
-    private string? _cachedJwt;
-    private bool? _cachedIsAdmin;
+    protected string? CachedUserId { private get; set; }
+    protected string? CachedUserEmail { private get; set; }
+    protected string? CachedJwt { private get; set; }
+    protected bool? CachedIsAdmin { private get; set; }
 
     public UserContext(IHttpContextAccessor httpContextAccessor)
     {
         HttpContextAccessor = httpContextAccessor;
     }
 
-    public void SetInternalContext(string domain)
+    public virtual void SetInternalContext(string domain)
     {
-        _cachedUserId = Guid.Empty.ToString();
-        _cachedUserEmail = $"internal@{domain}";
-        _cachedIsAdmin = true;
+        CachedUserId = Guid.Empty.ToString();
+        CachedUserEmail = $"internal@{domain}";
+        CachedIsAdmin = true;
     }
 
     public string GetId()
     {
-        if (_cachedUserId != null)
-            return _cachedUserId;
+        if (CachedUserId != null)
+            return CachedUserId;
 
         Claim? claim = HttpContextAccessor.HttpContext?.User.Claims.FirstOrDefault(c => c.Type == "http://schemas.microsoft.com/identity/claims/objectidentifier");
 
         if (claim?.Value == null)
             throw new UnauthorizedException();
 
-        _cachedUserId = claim.Value;
+        CachedUserId = claim.Value;
 
-        return _cachedUserId;
+        return CachedUserId;
     }
 
     public string? GetIdSafe()
     {
-        if (_cachedUserId != null)
-            return _cachedUserId;
+        if (CachedUserId != null)
+            return CachedUserId;
 
         Claim? claim = HttpContextAccessor.HttpContext?.User.Claims.FirstOrDefault(c => c.Type == "http://schemas.microsoft.com/identity/claims/objectidentifier");
 
         if (claim?.Value == null)
             return null;
 
-        _cachedUserId = claim.Value;
+        CachedUserId = claim.Value;
 
-        return _cachedUserId;
+        return CachedUserId;
     }
 
     public string GetEmail()
     {
-        if (_cachedUserEmail != null)
-            return _cachedUserEmail;
+        if (CachedUserEmail != null)
+            return CachedUserEmail;
 
         // TODO: pretty sure this can return multiple
         Claim? claim = HttpContextAccessor.HttpContext?.User.Claims.FirstOrDefault(c => c.Type == "emails");
@@ -75,15 +75,15 @@ public class UserContext : IUserContext
         if (claim?.Value == null)
             throw new UnauthorizedException();
 
-        _cachedUserEmail = claim.Value;
+        CachedUserEmail = claim.Value;
 
-        return _cachedUserEmail;
+        return CachedUserEmail;
     }
 
     public string GetJwt()
     {
-        if (_cachedJwt != null)
-            return _cachedJwt;
+        if (CachedJwt != null)
+            return CachedJwt;
 
         IHeaderDictionary? headers = HttpContextAccessor.HttpContext?.Request.Headers;
 
@@ -96,8 +96,8 @@ public class UserContext : IUserContext
 
         if (AuthenticationHeaderValue.TryParse(authHeader.ToString(), out AuthenticationHeaderValue? headerValue))
         {
-            _cachedJwt = headerValue.Parameter;
-            return _cachedJwt!;
+            CachedJwt = headerValue.Parameter;
+            return CachedJwt!;
         }
 
         throw new UnauthorizedException();
@@ -108,7 +108,7 @@ public class UserContext : IUserContext
         if (HttpContextAccessor.HttpContext == null)
             return null;
 
-        bool exists = HttpContextAccessor.HttpContext.Request.Headers.TryGetValue("x-api-key", out StringValues key);
+        bool exists = HttpContextAccessor.HttpContext.Request.Headers.TryGetValue(AuthConstants.XApiKey, out StringValues key);
 
         if (exists)
             return key.ToString();
@@ -123,19 +123,19 @@ public class UserContext : IUserContext
         if (context == null)
             return false;
 
-        bool isInAllRoles = roles.All(role => context.User.IsInRole(role));
+        bool isInAllRoles = roles.All(context.User.IsInRole);
 
         return isInAllRoles;
     }
 
     public bool IsAdmin()
     {
-        if (_cachedIsAdmin != null)
-            return _cachedIsAdmin.Value;
+        if (CachedIsAdmin != null)
+            return CachedIsAdmin.Value;
 
-        _cachedIsAdmin = HasRoles("Admin");
+        CachedIsAdmin = HasRoles("Admin");
 
-        return _cachedIsAdmin.Value;
+        return CachedIsAdmin.Value;
     }
 
     public bool IsNotAdmin()

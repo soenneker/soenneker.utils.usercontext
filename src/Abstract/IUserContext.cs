@@ -5,6 +5,7 @@ using Soenneker.Exceptions.Suite;
 namespace Soenneker.Utils.UserContext.Abstract;
 
 /// <summary>
+/// A utility library for retrieving various user information from the request context <para/>
 /// Always Scoped IoC. <para/>
 /// It's possible no claims exist on the user; like if this is an API call
 /// </summary>
