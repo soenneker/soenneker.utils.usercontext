@@ -36,12 +36,13 @@
         <None Include="..\README.md" Pack="true" PackagePath="\" />
         <None Include="..\LICENSE" Pack="true" PackagePath="\" />
         <None Include="..\icon.png" Pack="true" PackagePath="\" />
-        <PackageReference Include="Microsoft.AspNetCore.Http" Version="2.2.2" />
+        <PackageReference Include="Microsoft.AspNetCore.Http.Abstractions" Version="2.2.0" />
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="7.0.0" />
 
         <PackageReference Include="Microsoft.SourceLink.GitHub" Version="1.1.1" PrivateAssets="All" />
 
-        <PackageReference Include="Soenneker.Constants.Auth" Version="1.0.7" />
+        <PackageReference Include="Soenneker.Constants.Auth" Version="1.0.11" />
 
-        <PackageReference Include="Soenneker.Exceptions.Suite" Version="1.0.17" />
+        <PackageReference Include="Soenneker.Exceptions.Suite" Version="1.0.21" />
     </ItemGroup>
 </Project>

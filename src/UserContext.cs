@@ -4,7 +4,6 @@ using System.Net.Http.Headers;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Primitives;
-using Microsoft.Net.Http.Headers;
 using Soenneker.Constants.Auth;
 using Soenneker.Exceptions.Suite;
 using Soenneker.Utils.UserContext.Abstract;
@@ -91,7 +90,7 @@ public class UserContext : IUserContext
             throw new UnauthorizedException();
 
         // TODO: We need to account for multiple values here
-        if (!headers.TryGetValue(HeaderNames.Authorization, out StringValues authHeader))
+        if (!headers.TryGetValue("Authorization", out StringValues authHeader))
             throw new UnauthorizedException();
 
         if (AuthenticationHeaderValue.TryParse(authHeader.ToString(), out AuthenticationHeaderValue? headerValue))
