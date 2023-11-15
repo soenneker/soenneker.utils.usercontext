@@ -41,8 +41,8 @@
 
         <PackageReference Include="Microsoft.SourceLink.GitHub" Version="1.1.1" PrivateAssets="All" />
 
-        <PackageReference Include="Soenneker.Constants.Auth" Version="1.0.79" />
+        <PackageReference Include="Soenneker.Constants.Auth" Version="1.0.80" />
 
-        <PackageReference Include="Soenneker.Exceptions.Suite" Version="1.0.88" />
+        <PackageReference Include="Soenneker.Exceptions.Suite" Version="1.0.89" />
     </ItemGroup>
 </Project>
