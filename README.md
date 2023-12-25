@@ -8,5 +8,5 @@
 ## Installation
 
 ```
-Install-Package Soenneker.Utils.UserContext
+dotnet add package Soenneker.Utils.UserContext
 ```
