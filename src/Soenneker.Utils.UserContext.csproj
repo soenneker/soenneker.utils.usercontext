@@ -43,6 +43,6 @@
 
         <PackageReference Include="Soenneker.Constants.Auth" Version="2.1.237" />
 
-        <PackageReference Include="Soenneker.Exceptions.Suite" Version="2.1.229" />
+        <PackageReference Include="Soenneker.Exceptions.Suite" Version="2.1.230" />
     </ItemGroup>
 </Project>
