@@ -15,7 +15,6 @@ namespace Soenneker.Utils.UserContext;
 public class UserContext : IUserContext
 {
     public IHttpContextAccessor HttpContextAccessor { get; set; }
-
     protected string? CachedUserId { private get; set; }
     protected string? CachedUserEmail { private get; set; }
     protected string? CachedJwt { private get; set; }

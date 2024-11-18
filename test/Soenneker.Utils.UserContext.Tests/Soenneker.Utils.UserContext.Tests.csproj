@@ -1,8 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFramework>net8.0</TargetFramework>
-
+        <TargetFramework>net9.0</TargetFramework>
         <Nullable>enable</Nullable>
         <IsPackable>false</IsPackable>
     </PropertyGroup>
@@ -17,7 +16,7 @@
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
             <PrivateAssets>all</PrivateAssets>
         </PackageReference>
-        <PackageReference Include="Soenneker.Tests.Unit" Version="2.1.457" />
+        <PackageReference Include="Soenneker.Tests.Unit" Version="3.0.468" />
     </ItemGroup>
 
     <ItemGroup>

@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFrameworks>net8.0</TargetFrameworks>
+        <TargetFrameworks>net9.0</TargetFrameworks>
         <Nullable>enable</Nullable>
         <Platforms>AnyCPU</Platforms>
         <NoWarn>$(NoWarn);1591</NoWarn>
@@ -36,13 +36,12 @@
         <None Include="..\README.md" Pack="true" PackagePath="\" />
         <None Include="..\LICENSE" Pack="true" PackagePath="\" />
         <None Include="..\icon.png" Pack="true" PackagePath="\" />
-        <PackageReference Include="Microsoft.AspNetCore.Http.Abstractions" Version="2.2.0" />
         <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.0" />
-
-        
-
         <PackageReference Include="Soenneker.Constants.Auth" Version="3.0.378" />
+        <PackageReference Include="Soenneker.Exceptions.Suite" Version="3.0.367" />
+    </ItemGroup>
 
-        <PackageReference Include="Soenneker.Exceptions.Suite" Version="2.1.359" />
+    <ItemGroup>
+        <FrameworkReference Include="Microsoft.AspNetCore.App" />
     </ItemGroup>
 </Project>
