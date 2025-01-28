@@ -37,7 +37,7 @@
         <None Include="..\LICENSE" Pack="true" PackagePath="\" />
         <None Include="..\icon.png" Pack="true" PackagePath="\" />
         <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.1" />
-        <PackageReference Include="Soenneker.Constants.Auth" Version="3.0.513" />
+        <PackageReference Include="Soenneker.Constants.Auth" Version="3.0.514" />
         <PackageReference Include="Soenneker.Exceptions.Suite" Version="3.0.533" />
     </ItemGroup>
 
