@@ -1,143 +1,185 @@
 ﻿using System;
-using System.Linq;
 using System.Net.Http.Headers;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Primitives;
 using Soenneker.Constants.Auth;
 using Soenneker.Exceptions.Suite;
 using Soenneker.Utils.UserContext.Abstract;
+using Soenneker.Extensions.String;
 
 namespace Soenneker.Utils.UserContext;
 
-// TODO: Tests
-///<inheritdoc cref="IUserContext"/>
 public class UserContext : IUserContext
 {
     public IHttpContextAccessor HttpContextAccessor { get; set; }
-    protected string? CachedUserId { private get; set; }
-    protected string? CachedUserEmail { private get; set; }
-    protected string? CachedJwt { private get; set; }
-    protected bool? CachedIsAdmin { private get; set; }
 
-    public UserContext(IHttpContextAccessor httpContextAccessor)
+    private readonly ILogger<UserContext> _logger;
+
+    private string? _cachedUserId;
+    private string? _cachedUserEmail;
+    private string? _cachedJwt;
+    private bool? _cachedIsAdmin;
+
+    public UserContext(IHttpContextAccessor httpContextAccessor, ILogger<UserContext> logger)
     {
         HttpContextAccessor = httpContextAccessor;
+        _logger = logger;
     }
 
-    public virtual void SetInternalContext(string domain)
+    /// <summary>
+    /// Sets an internal context for system or service use.
+    /// </summary>
+    public void SetInternalContext(string domain)
     {
-        CachedUserId = Guid.Empty.ToString();
-        CachedUserEmail = $"internal@{domain}";
-        CachedIsAdmin = true;
+        _cachedUserId = Guid.Empty.ToString();
+        _cachedUserEmail = "internal@" + domain;
+        _cachedIsAdmin = true;
     }
 
     public string GetId()
     {
-        if (CachedUserId != null)
-            return CachedUserId;
+        if (_cachedUserId != null)
+            return _cachedUserId;
 
-        Claim? claim = HttpContextAccessor.HttpContext?.User.Claims.FirstOrDefault(c => c.Type == "http://schemas.microsoft.com/identity/claims/objectidentifier");
-
-        if (claim?.Value == null)
+        HttpContext? httpContext = HttpContextAccessor.HttpContext;
+        ClaimsPrincipal? user = httpContext?.User;
+        if (user == null)
+        {
+            _logger.LogWarning("HttpContext or User is null in GetId.");
             throw new UnauthorizedException();
+        }
 
-        CachedUserId = claim.Value;
+        // Using FindFirst avoids extra allocations from LINQ
+        Claim? claim = user.FindFirst("http://schemas.microsoft.com/identity/claims/objectidentifier");
 
-        return CachedUserId;
+        if (claim == null || claim.Value.IsNullOrEmpty())
+        {
+            _logger.LogWarning("User claim for object identifier is missing in GetId.");
+            throw new UnauthorizedException();
+        }
+
+        _cachedUserId = claim.Value;
+        return _cachedUserId;
     }
 
     public string? GetIdSafe()
     {
-        if (CachedUserId != null)
-            return CachedUserId;
+        if (_cachedUserId != null)
+            return _cachedUserId;
 
-        Claim? claim = HttpContextAccessor.HttpContext?.User.Claims.FirstOrDefault(c => c.Type == "http://schemas.microsoft.com/identity/claims/objectidentifier");
+        HttpContext? httpContext = HttpContextAccessor.HttpContext;
+        ClaimsPrincipal? user = httpContext?.User;
 
-        if (claim?.Value == null)
+        if (user == null)
             return null;
 
-        CachedUserId = claim.Value;
+        Claim? claim = user.FindFirst("http://schemas.microsoft.com/identity/claims/objectidentifier");
 
-        return CachedUserId;
+        if (claim == null || claim.Value.IsNullOrEmpty())
+            return null;
+
+        _cachedUserId = claim.Value;
+        return _cachedUserId;
     }
 
     public string GetEmail()
     {
-        if (CachedUserEmail != null)
-            return CachedUserEmail;
+        if (_cachedUserEmail != null)
+            return _cachedUserEmail;
 
-        // TODO: pretty sure this can return multiple
-        Claim? claim = HttpContextAccessor.HttpContext?.User.Claims.FirstOrDefault(c => c.Type == "emails");
+        HttpContext? httpContext = HttpContextAccessor.HttpContext;
+        ClaimsPrincipal? user = httpContext?.User;
 
-        if (claim?.Value == null)
+        if (user == null)
+        {
+            _logger.LogWarning("HttpContext or User is null in GetEmail.");
             throw new UnauthorizedException();
+        }
 
-        CachedUserEmail = claim.Value;
+        // Note: if multiple emails exist, this returns the first one.
+        Claim? claim = user.FindFirst("emails");
 
-        return CachedUserEmail;
+        if (claim == null || claim.Value.IsNullOrEmpty())
+        {
+            _logger.LogWarning("User claim for emails is missing in GetEmail.");
+            throw new UnauthorizedException();
+        }
+
+        _cachedUserEmail = claim.Value;
+        return _cachedUserEmail;
     }
 
     public string GetJwt()
     {
-        if (CachedJwt != null)
-            return CachedJwt;
+        if (_cachedJwt != null)
+            return _cachedJwt;
 
-        IHeaderDictionary? headers = HttpContextAccessor.HttpContext?.Request.Headers;
-
-        if (headers == null)
-            throw new UnauthorizedException();
-
-        // TODO: We need to account for multiple values here
-        if (!headers.TryGetValue("Authorization", out StringValues authHeader))
-            throw new UnauthorizedException();
-
-        if (AuthenticationHeaderValue.TryParse(authHeader.ToString(), out AuthenticationHeaderValue? headerValue))
+        HttpContext? httpContext = HttpContextAccessor.HttpContext;
+        if (httpContext == null)
         {
-            CachedJwt = headerValue.Parameter;
-            return CachedJwt!;
+            _logger.LogWarning("HttpContext is null in GetJwt.");
+            throw new UnauthorizedException();
         }
 
+        if (!httpContext.Request.Headers.TryGetValue("Authorization", out StringValues authHeader) || authHeader.Count == 0)
+        {
+            _logger.LogWarning("Authorization header is missing or empty in GetJwt.");
+            throw new UnauthorizedException();
+        }
+
+        // Use the first header value to avoid extra string allocations
+        string? headerValueString = authHeader[0];
+
+        if (AuthenticationHeaderValue.TryParse(headerValueString, out AuthenticationHeaderValue? headerValue) && !headerValue.Parameter.IsNullOrEmpty())
+        {
+            _cachedJwt = headerValue.Parameter;
+            return _cachedJwt;
+        }
+
+        _logger.LogWarning("Failed to parse JWT from Authorization header in GetJwt.");
         throw new UnauthorizedException();
     }
 
     public string? GetApiKey()
     {
-        if (HttpContextAccessor.HttpContext == null)
+        HttpContext? httpContext = HttpContextAccessor.HttpContext;
+        if (httpContext == null)
             return null;
 
-        bool exists = HttpContextAccessor.HttpContext.Request.Headers.TryGetValue(AuthConstants.XApiKey, out StringValues key);
-
-        if (exists)
-            return key.ToString();
+        if (httpContext.Request.Headers.TryGetValue(AuthConstants.XApiKey, out StringValues apiKey) && apiKey.Count > 0)
+        {
+            return apiKey[0];
+        }
 
         return null;
     }
 
     public bool HasRoles(params string[] roles)
     {
-        HttpContext? context = HttpContextAccessor.HttpContext;
-
-        if (context == null)
+        ClaimsPrincipal? user = HttpContextAccessor.HttpContext?.User;
+        if (user == null)
             return false;
 
-        bool isInAllRoles = roles.All(context.User.IsInRole);
+        // Iterate explicitly instead of using LINQ.All to reduce lambda overhead.
+        for (int i = 0; i < roles.Length; i++)
+        {
+            if (!user.IsInRole(roles[i]))
+                return false;
+        }
 
-        return isInAllRoles;
+        return true;
     }
 
     public bool IsAdmin()
     {
-        if (CachedIsAdmin != null)
-            return CachedIsAdmin.Value;
+        if (_cachedIsAdmin.HasValue)
+            return _cachedIsAdmin.Value;
 
-        CachedIsAdmin = HasRoles("Admin");
-
-        return CachedIsAdmin.Value;
+        _cachedIsAdmin = HasRoles("Admin");
+        return _cachedIsAdmin.Value;
     }
 
-    public bool IsNotAdmin()
-    {
-        return !IsAdmin();
-    }
+    public bool IsNotAdmin() => !IsAdmin();
 }
