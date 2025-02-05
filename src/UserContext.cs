@@ -22,6 +22,8 @@ public class UserContext : IUserContext
     private string? _cachedJwt;
     private bool? _cachedIsAdmin;
 
+    private const string _idClaim = "http://schemas.microsoft.com/identity/claims/objectidentifier";
+
     public UserContext(IHttpContextAccessor httpContextAccessor, ILogger<UserContext> logger)
     {
         HttpContextAccessor = httpContextAccessor;
@@ -34,7 +36,7 @@ public class UserContext : IUserContext
     public void SetInternalContext(string domain)
     {
         _cachedUserId = Guid.Empty.ToString();
-        _cachedUserEmail = "internal@" + domain;
+        _cachedUserEmail = $"internal@{domain}";
         _cachedIsAdmin = true;
     }
 
@@ -45,6 +47,7 @@ public class UserContext : IUserContext
 
         HttpContext? httpContext = HttpContextAccessor.HttpContext;
         ClaimsPrincipal? user = httpContext?.User;
+
         if (user == null)
         {
             _logger.LogWarning("HttpContext or User is null in GetId.");
@@ -52,7 +55,7 @@ public class UserContext : IUserContext
         }
 
         // Using FindFirst avoids extra allocations from LINQ
-        Claim? claim = user.FindFirst("http://schemas.microsoft.com/identity/claims/objectidentifier");
+        Claim? claim = user.FindFirst(_idClaim);
 
         if (claim == null || claim.Value.IsNullOrEmpty())
         {
@@ -75,7 +78,7 @@ public class UserContext : IUserContext
         if (user == null)
             return null;
 
-        Claim? claim = user.FindFirst("http://schemas.microsoft.com/identity/claims/objectidentifier");
+        Claim? claim = user.FindFirst(_idClaim);
 
         if (claim == null || claim.Value.IsNullOrEmpty())
             return null;
