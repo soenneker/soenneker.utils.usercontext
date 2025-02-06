@@ -15,7 +15,7 @@ public class UserContext : IUserContext
 {
     public IHttpContextAccessor HttpContextAccessor { get; set; }
 
-    private readonly ILogger<UserContext> _logger;
+    private readonly ILogger _logger;
 
     private string? _cachedUserId;
     private string? _cachedUserEmail;
@@ -24,7 +24,7 @@ public class UserContext : IUserContext
 
     private const string _idClaim = "http://schemas.microsoft.com/identity/claims/objectidentifier";
 
-    public UserContext(IHttpContextAccessor httpContextAccessor, ILogger<UserContext> logger)
+    public UserContext(IHttpContextAccessor httpContextAccessor, ILogger logger)
     {
         HttpContextAccessor = httpContextAccessor;
         _logger = logger;
