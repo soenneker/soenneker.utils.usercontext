@@ -11,8 +11,8 @@ public static class UserContextRegistrar
 {
     public static IServiceCollection AddUserContextAsScoped(this IServiceCollection services)
     {
-        services.AddHttpContextAccessor();
-        services.TryAddScoped<IUserContext, UserContext>();
+        services.AddHttpContextAccessor()
+                .TryAddScoped<IUserContext, UserContext>();
 
         return services;
     }

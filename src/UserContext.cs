@@ -24,6 +24,12 @@ public class UserContext : IUserContext
 
     private const string _idClaim = "http://schemas.microsoft.com/identity/claims/objectidentifier";
 
+    public UserContext(IHttpContextAccessor httpContextAccessor, ILogger<UserContext> logger)
+    {
+        HttpContextAccessor = httpContextAccessor;
+        _logger = logger;
+    }
+
     public UserContext(IHttpContextAccessor httpContextAccessor, ILogger logger)
     {
         HttpContextAccessor = httpContextAccessor;
@@ -76,7 +82,10 @@ public class UserContext : IUserContext
         ClaimsPrincipal? user = httpContext?.User;
 
         if (user == null)
+        {
+            _logger.LogWarning("HttpContext or User is null in GetId.");
             return null;
+        }
 
         Claim? claim = user.FindFirst(_idClaim);
 
