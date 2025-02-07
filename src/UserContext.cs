@@ -81,13 +81,7 @@ public class UserContext : IUserContext
         HttpContext? httpContext = HttpContextAccessor.HttpContext;
         ClaimsPrincipal? user = httpContext?.User;
 
-        if (user == null)
-        {
-            _logger.LogWarning("HttpContext or User is null in GetId.");
-            return null;
-        }
-
-        Claim? claim = user.FindFirst(_idClaim);
+        Claim? claim = user?.FindFirst(_idClaim);
 
         if (claim == null || claim.Value.IsNullOrEmpty())
             return null;
