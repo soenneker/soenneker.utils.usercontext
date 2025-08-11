@@ -39,7 +39,7 @@
         <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.8" />
         <PackageReference Include="Soenneker.Constants.Auth" Version="3.0.598" />
         <PackageReference Include="Soenneker.Exceptions.Suite" Version="3.0.669" />
-        <PackageReference Include="Soenneker.Extensions.String" Version="3.0.542" />
+        <PackageReference Include="Soenneker.Extensions.String" Version="3.0.547" />
     </ItemGroup>
 
     <ItemGroup>
