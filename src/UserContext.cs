@@ -104,13 +104,19 @@ public class UserContext : IUserContext
             throw new UnauthorizedException();
         }
 
-        // Note: if multiple emails exist, this returns the first one.
-        Claim? claim = user.FindFirst("emails");
+        Claim? claim = user.FindFirst("email");
 
         if (claim == null || claim.Value.IsNullOrEmpty())
         {
-            _logger.LogWarning("User claim for emails is missing in GetEmail.");
-            throw new UnauthorizedException();
+            // Backwards compat...
+            // Note: if multiple emails exist, this returns the first one.
+            claim = user.FindFirst("emails");
+
+            if (claim == null || claim.Value.IsNullOrEmpty())
+            {
+                _logger.LogWarning("User claim for emails is missing in GetEmail.");
+                throw new UnauthorizedException();
+            }
         }
 
         _cachedUserEmail = claim.Value;
