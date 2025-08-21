@@ -23,7 +23,7 @@ public class UserContext : IUserContext
     private bool? _cachedIsAdmin;
 
     private const string _idClaim = "http://schemas.microsoft.com/identity/claims/objectidentifier";
-
+    private const string _emailClaim = "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress";
     public UserContext(IHttpContextAccessor httpContextAccessor, ILogger<UserContext> logger)
     {
         HttpContextAccessor = httpContextAccessor;
@@ -104,7 +104,7 @@ public class UserContext : IUserContext
             throw new UnauthorizedException();
         }
 
-        Claim? claim = user.FindFirst("email");
+        Claim? claim = user.FindFirst(_emailClaim);
 
         if (claim == null || claim.Value.IsNullOrEmpty())
         {
