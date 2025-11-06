@@ -11,6 +11,7 @@ using Soenneker.Extensions.String;
 
 namespace Soenneker.Utils.UserContext;
 
+///<inheritdoc cref="IUserContext"/>
 public class UserContext : IUserContext
 {
     public IHttpContextAccessor HttpContextAccessor { get; set; }
@@ -175,7 +176,7 @@ public class UserContext : IUserContext
             return false;
 
         // Iterate explicitly instead of using LINQ.All to reduce lambda overhead.
-        for (int i = 0; i < roles.Length; i++)
+        for (var i = 0; i < roles.Length; i++)
         {
             if (!user.IsInRole(roles[i]))
                 return false;
