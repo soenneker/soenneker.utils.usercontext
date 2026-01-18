@@ -6,13 +6,13 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Primitives;
 using Soenneker.Constants.Auth;
 using Soenneker.Exceptions.Suite;
-using Soenneker.Utils.UserContext.Abstract;
 using Soenneker.Extensions.String;
+using Soenneker.Utils.UserContext.Abstract;
 
 namespace Soenneker.Utils.UserContext;
 
 ///<inheritdoc cref="IUserContext"/>
-public class UserContext : IUserContext
+public sealed class UserContext : IUserContext
 {
     public IHttpContextAccessor HttpContextAccessor { get; set; }
 
@@ -23,8 +23,18 @@ public class UserContext : IUserContext
     private string? _cachedJwt;
     private bool? _cachedIsAdmin;
 
-    private const string _idClaim = "http://schemas.microsoft.com/identity/claims/objectidentifier";
-    private const string _emailClaim = "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress";
+    // Cache "missing" states too, so we don't keep re-walking claims/headers.
+    private bool _idResolved;
+    private bool _emailResolved;
+    private bool _jwtResolved;
+
+    private static readonly string IdClaim = "http://schemas.microsoft.com/identity/claims/objectidentifier";
+    private static readonly string EmailClaim = ClaimTypes.Email; // "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress"
+    private const string EmailsFallbackClaim = "emails";
+
+    private const string AuthorizationHeaderName = "Authorization";
+    private const string BearerPrefix = "Bearer ";
+
     public UserContext(IHttpContextAccessor httpContextAccessor, ILogger<UserContext> logger)
     {
         HttpContextAccessor = httpContextAccessor;
@@ -42,47 +52,35 @@ public class UserContext : IUserContext
     /// </summary>
     public void SetInternalContext(string domain)
     {
+        // 36-char guid string allocation is fine here; it's not hot.
         _cachedUserId = Guid.Empty.ToString();
         _cachedUserEmail = $"internal@{domain}";
         _cachedIsAdmin = true;
+
+        _idResolved = true;
+        _emailResolved = true;
     }
 
     public string GetId()
     {
-        if (_cachedUserId != null)
-            return _cachedUserId;
+        string? id = GetIdSafe();
 
-        HttpContext? httpContext = HttpContextAccessor.HttpContext;
-        ClaimsPrincipal? user = httpContext?.User;
+        if (id.HasContent())
+            return id!;
 
-        if (user == null)
-        {
-            _logger.LogWarning("HttpContext or User is null in GetId.");
-            throw new UnauthorizedException();
-        }
-
-        // Using FindFirst avoids extra allocations from LINQ
-        Claim? claim = user.FindFirst(_idClaim);
-
-        if (claim == null || claim.Value.IsNullOrEmpty())
-        {
-            _logger.LogWarning("User claim for object identifier is missing in GetId.");
-            throw new UnauthorizedException();
-        }
-
-        _cachedUserId = claim.Value;
-        return _cachedUserId;
+        _logger.LogWarning("User claim for object identifier is missing in GetId.");
+        throw new UnauthorizedException();
     }
 
     public string? GetIdSafe()
     {
-        if (_cachedUserId != null)
+        if (_idResolved)
             return _cachedUserId;
 
-        HttpContext? httpContext = HttpContextAccessor.HttpContext;
-        ClaimsPrincipal? user = httpContext?.User;
+        _idResolved = true;
 
-        Claim? claim = user?.FindFirst(_idClaim);
+        ClaimsPrincipal? user = HttpContextAccessor.HttpContext?.User;
+        Claim? claim = user?.FindFirst(IdClaim);
 
         if (claim == null || claim.Value.IsNullOrEmpty())
             return null;
@@ -93,31 +91,36 @@ public class UserContext : IUserContext
 
     public string GetEmail()
     {
-        if (_cachedUserEmail != null)
+        string? email = GetEmailSafe();
+
+        if (email.HasContent())
+            return email!;
+
+        _logger.LogWarning("User claim for email is missing in GetEmail.");
+        throw new UnauthorizedException();
+    }
+
+    public string? GetEmailSafe()
+    {
+        if (_emailResolved)
             return _cachedUserEmail;
 
-        HttpContext? httpContext = HttpContextAccessor.HttpContext;
-        ClaimsPrincipal? user = httpContext?.User;
+        _emailResolved = true;
+
+        ClaimsPrincipal? user = HttpContextAccessor.HttpContext?.User;
 
         if (user == null)
-        {
-            _logger.LogWarning("HttpContext or User is null in GetEmail.");
-            throw new UnauthorizedException();
-        }
+            return null;
 
-        Claim? claim = user.FindFirst(_emailClaim);
+        Claim? claim = user.FindFirst(EmailClaim);
 
         if (claim == null || claim.Value.IsNullOrEmpty())
         {
-            // Backwards compat...
-            // Note: if multiple emails exist, this returns the first one.
-            claim = user.FindFirst("emails");
+            // Backwards compat: "emails"
+            claim = user.FindFirst(EmailsFallbackClaim);
 
             if (claim == null || claim.Value.IsNullOrEmpty())
-            {
-                _logger.LogWarning("User claim for emails is missing in GetEmail.");
-                throw new UnauthorizedException();
-            }
+                return null;
         }
 
         _cachedUserEmail = claim.Value;
@@ -126,56 +129,87 @@ public class UserContext : IUserContext
 
     public string GetJwt()
     {
-        if (_cachedJwt != null)
-            return _cachedJwt;
+        string? jwt = GetJwtSafe();
 
-        HttpContext? httpContext = HttpContextAccessor.HttpContext;
-        if (httpContext == null)
-        {
-            _logger.LogWarning("HttpContext is null in GetJwt.");
-            throw new UnauthorizedException();
-        }
+        if (jwt.HasContent())
+            return jwt!;
 
-        if (!httpContext.Request.Headers.TryGetValue("Authorization", out StringValues authHeader) || authHeader.Count == 0)
-        {
-            _logger.LogWarning("Authorization header is missing or empty in GetJwt.");
-            throw new UnauthorizedException();
-        }
-
-        // Use the first header value to avoid extra string allocations
-        string? headerValueString = authHeader[0];
-
-        if (AuthenticationHeaderValue.TryParse(headerValueString, out AuthenticationHeaderValue? headerValue) && !headerValue.Parameter.IsNullOrEmpty())
-        {
-            _cachedJwt = headerValue.Parameter;
-            return _cachedJwt;
-        }
-
-        _logger.LogWarning("Failed to parse JWT from Authorization header in GetJwt.");
+        _logger.LogWarning("Authorization header is missing/invalid in GetJwt.");
         throw new UnauthorizedException();
     }
 
-    public string? GetApiKey()
+    public string? GetJwtSafe()
     {
+        if (_jwtResolved)
+            return _cachedJwt;
+
+        _jwtResolved = true;
+
         HttpContext? httpContext = HttpContextAccessor.HttpContext;
         if (httpContext == null)
             return null;
 
-        if (httpContext.Request.Headers.TryGetValue(AuthConstants.XApiKey, out StringValues apiKey) && apiKey.Count > 0)
+        if (!httpContext.Request.Headers.TryGetValue(AuthorizationHeaderName, out StringValues authHeader) || authHeader.Count == 0)
+            return null;
+
+        string? headerValue = authHeader[0];
+
+        if (headerValue.IsNullOrEmpty())
+            return null;
+
+        // Fast path: "Bearer <token>" without AuthenticationHeaderValue allocations
+        if (headerValue.StartsWith(BearerPrefix, StringComparison.OrdinalIgnoreCase))
         {
-            return apiKey[0];
+            // Slice after "Bearer "
+            string token = headerValue.Substring(BearerPrefix.Length);
+
+            if (!token.IsNullOrEmpty())
+            {
+                _cachedJwt = token;
+                return _cachedJwt;
+            }
+
+            return null;
+        }
+
+        // Fallback: keep old behavior for non-bearer formats (rare)
+        if (AuthenticationHeaderValue.TryParse(headerValue, out AuthenticationHeaderValue? parsed) &&
+            !parsed.Parameter.IsNullOrEmpty())
+        {
+            _cachedJwt = parsed.Parameter;
+            return _cachedJwt;
         }
 
         return null;
     }
 
+    public string? GetApiKey()
+    {
+        HttpContext? httpContext = HttpContextAccessor.HttpContext;
+
+        if (httpContext == null)
+            return null;
+
+        if (httpContext.Request.Headers.TryGetValue(AuthConstants.XApiKey, out StringValues apiKey) && apiKey.Count > 0)
+            return apiKey[0];
+
+        return null;
+    }
+
+    // Overload avoids params array allocation for the common case.
+    public bool HasRole(string role)
+    {
+        ClaimsPrincipal? user = HttpContextAccessor.HttpContext?.User;
+        return user != null && user.IsInRole(role);
+    }
+
     public bool HasRoles(params string[] roles)
     {
         ClaimsPrincipal? user = HttpContextAccessor.HttpContext?.User;
+
         if (user == null)
             return false;
 
-        // Iterate explicitly instead of using LINQ.All to reduce lambda overhead.
         for (var i = 0; i < roles.Length; i++)
         {
             if (!user.IsInRole(roles[i]))
@@ -190,7 +224,8 @@ public class UserContext : IUserContext
         if (_cachedIsAdmin.HasValue)
             return _cachedIsAdmin.Value;
 
-        _cachedIsAdmin = HasRoles("Admin");
+        // Avoid params allocation here
+        _cachedIsAdmin = HasRole("Admin");
         return _cachedIsAdmin.Value;
     }
 
