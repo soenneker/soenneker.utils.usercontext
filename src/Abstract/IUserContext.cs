@@ -32,6 +32,10 @@ public interface IUserContext
     [Pure]
     string? GetIdSafe();
 
+    /// <summary>
+    /// Retrieves the email address associated with the current instance.
+    /// </summary>
+    /// <returns>A string containing the email address. The value may be empty if no email address is set.</returns>
     [Pure]
     string GetEmail();
 
@@ -44,6 +48,15 @@ public interface IUserContext
     string GetJwt();
 
     [Pure]
+    bool HasRole(string role);
+
+    /// <summary>
+    /// Determines whether the current principal is assigned any of the specified roles.
+    /// </summary>
+    /// <param name="roles">An array of role names to check against the current principal. Each element represents a role to evaluate.
+    /// Cannot be null or contain null elements.</param>
+    /// <returns>true if the current principal is in at least one of the specified roles; otherwise, false.</returns>
+    [Pure]
     bool HasRoles(params string[] roles);
 
     /// <summary>
@@ -52,6 +65,10 @@ public interface IUserContext
     [Pure]
     bool IsAdmin();
 
+    /// <summary>
+    /// Determines whether the current user does not have administrative privileges.
+    /// </summary>
+    /// <returns><see langword="true"/> if the current user is not an administrator; otherwise, <see langword="false"/>.</returns>
     [Pure]
     bool IsNotAdmin();
 
