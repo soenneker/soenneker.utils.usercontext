@@ -12,7 +12,7 @@ using Soenneker.Utils.UserContext.Abstract;
 namespace Soenneker.Utils.UserContext;
 
 ///<inheritdoc cref="IUserContext"/>
-public sealed class UserContext : IUserContext
+public class UserContext : IUserContext
 {
     public IHttpContextAccessor HttpContextAccessor { get; set; }
 
