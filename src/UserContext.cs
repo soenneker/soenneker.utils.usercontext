@@ -31,6 +31,8 @@ public class UserContext : IUserContext
     private static readonly string IdClaim = "http://schemas.microsoft.com/identity/claims/objectidentifier";
     private static readonly string EmailClaim = ClaimTypes.Email; // "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress"
     private const string EmailsFallbackClaim = "emails";
+    private const string OidClaim = "oid";
+    private const string SubjectClaim = "sub";
 
     private const string AuthorizationHeaderName = "Authorization";
     private const string BearerPrefix = "Bearer ";
@@ -77,15 +79,28 @@ public class UserContext : IUserContext
         if (_idResolved)
             return _cachedUserId;
 
-        _idResolved = true;
-
         ClaimsPrincipal? user = HttpContextAccessor.HttpContext?.User;
-        Claim? claim = user?.FindFirst(IdClaim);
 
-        if (claim == null || claim.Value.IsNullOrEmpty())
+        // If we run before auth middleware (or outside an HTTP request), don't cache "missing".
+        // This lets subsequent calls later in the pipeline resolve successfully.
+        if (user?.Identity?.IsAuthenticated != true)
             return null;
 
+        Claim? claim =
+            user.FindFirst(IdClaim) ??
+            user.FindFirst(OidClaim) ??
+            user.FindFirst(ClaimTypes.NameIdentifier) ??
+            user.FindFirst(SubjectClaim);
+
+        if (claim == null || claim.Value.IsNullOrEmpty())
+        {
+            // User is authenticated but the identifier claim is genuinely missing; cache the miss.
+            _idResolved = true;
+            return null;
+        }
+
         _cachedUserId = claim.Value;
+        _idResolved = true;
         return _cachedUserId;
     }
 
