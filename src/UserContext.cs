@@ -35,7 +35,6 @@ public class UserContext : IUserContext
     private const string SubjectClaim = "sub";
 
     private const string AuthorizationHeaderName = "Authorization";
-    private const string BearerPrefix = "Bearer ";
 
     public UserContext(IHttpContextAccessor httpContextAccessor, ILogger<UserContext> logger)
     {
@@ -120,25 +119,28 @@ public class UserContext : IUserContext
         if (_emailResolved)
             return _cachedUserEmail;
 
-        _emailResolved = true;
-
         ClaimsPrincipal? user = HttpContextAccessor.HttpContext?.User;
 
-        if (user == null)
+        // if we're not authenticated yet / no context, don't cache a miss.
+        if (user?.Identity?.IsAuthenticated != true)
             return null;
 
         Claim? claim = user.FindFirst(EmailClaim);
 
         if (claim == null || claim.Value.IsNullOrEmpty())
         {
-            // Backwards compat: "emails"
             claim = user.FindFirst(EmailsFallbackClaim);
 
             if (claim == null || claim.Value.IsNullOrEmpty())
+            {
+                // Authenticated, but genuinely missing -> cache miss.
+                _emailResolved = true;
                 return null;
+            }
         }
 
         _cachedUserEmail = claim.Value;
+        _emailResolved = true;
         return _cachedUserEmail;
     }
 
@@ -158,43 +160,54 @@ public class UserContext : IUserContext
         if (_jwtResolved)
             return _cachedJwt;
 
-        _jwtResolved = true;
-
         HttpContext? httpContext = HttpContextAccessor.HttpContext;
+
+        // If no context yet, don't cache a miss.
         if (httpContext == null)
             return null;
 
         if (!httpContext.Request.Headers.TryGetValue(AuthorizationHeaderName, out StringValues authHeader) || authHeader.Count == 0)
-            return null;
+            return null; // don't cache a miss
 
         string? headerValue = authHeader[0];
 
         if (headerValue.IsNullOrEmpty())
-            return null;
-
-        // Fast path: "Bearer <token>" without AuthenticationHeaderValue allocations
-        if (headerValue.StartsWith(BearerPrefix, StringComparison.OrdinalIgnoreCase))
         {
-            // Slice after "Bearer "
-            string token = headerValue.Substring(BearerPrefix.Length);
-
-            if (!token.IsNullOrEmpty())
-            {
-                _cachedJwt = token;
-                return _cachedJwt;
-            }
-
+            // Header exists but empty -> cache miss (this is a real miss for this request)
+            _jwtResolved = true;
             return null;
         }
 
-        // Fallback: keep old behavior for non-bearer formats (rare)
+        // More tolerant bearer parsing than StartsWith("Bearer ")
+        // Handles: "Bearer    token", "bearer token", leading/trailing whitespace.
+        ReadOnlySpan<char> s = headerValue.AsSpan().Trim();
+
+        if (s.Length >= 6 && s[..6].Equals("Bearer".AsSpan(), StringComparison.OrdinalIgnoreCase))
+        {
+            s = s[6..].TrimStart(); // skip scheme, then whitespace
+
+            if (!s.IsEmpty)
+            {
+                _cachedJwt = new string(s); // allocation, but same as returning substring
+                _jwtResolved = true;
+                return _cachedJwt;
+            }
+
+            _jwtResolved = true;
+            return null;
+        }
+
+        // Fallback for odd formats
         if (AuthenticationHeaderValue.TryParse(headerValue, out AuthenticationHeaderValue? parsed) &&
             !parsed.Parameter.IsNullOrEmpty())
         {
             _cachedJwt = parsed.Parameter;
+            _jwtResolved = true;
             return _cachedJwt;
         }
 
+        // Header present but invalid -> cache miss (real miss for this request)
+        _jwtResolved = true;
         return null;
     }
 
