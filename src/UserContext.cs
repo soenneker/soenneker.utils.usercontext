@@ -6,8 +6,8 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Primitives;
 using Soenneker.Constants.Auth;
 using Soenneker.Exceptions.Suite;
-using Soenneker.Extensions.String;
 using Soenneker.Utils.UserContext.Abstract;
+using Soenneker.Extensions.String;
 
 namespace Soenneker.Utils.UserContext;
 
@@ -23,19 +23,8 @@ public class UserContext : IUserContext
     private string? _cachedJwt;
     private bool? _cachedIsAdmin;
 
-    // Cache "missing" states too, so we don't keep re-walking claims/headers.
-    private bool _idResolved;
-    private bool _emailResolved;
-    private bool _jwtResolved;
-
-    private static readonly string IdClaim = "http://schemas.microsoft.com/identity/claims/objectidentifier";
-    private static readonly string EmailClaim = ClaimTypes.Email; // "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress"
-    private const string EmailsFallbackClaim = "emails";
-    private const string OidClaim = "oid";
-    private const string SubjectClaim = "sub";
-
-    private const string AuthorizationHeaderName = "Authorization";
-
+    private const string _idClaim = "http://schemas.microsoft.com/identity/claims/objectidentifier";
+    private const string _emailClaim = "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress";
     public UserContext(IHttpContextAccessor httpContextAccessor, ILogger<UserContext> logger)
     {
         HttpContextAccessor = httpContextAccessor;
@@ -53,191 +42,140 @@ public class UserContext : IUserContext
     /// </summary>
     public void SetInternalContext(string domain)
     {
-        // 36-char guid string allocation is fine here; it's not hot.
         _cachedUserId = Guid.Empty.ToString();
         _cachedUserEmail = $"internal@{domain}";
         _cachedIsAdmin = true;
-
-        _idResolved = true;
-        _emailResolved = true;
     }
 
     public string GetId()
     {
-        string? id = GetIdSafe();
+        if (_cachedUserId != null)
+            return _cachedUserId;
 
-        if (id.HasContent())
-            return id!;
+        HttpContext? httpContext = HttpContextAccessor.HttpContext;
+        ClaimsPrincipal? user = httpContext?.User;
 
-        _logger.LogWarning("User claim for object identifier is missing in GetId.");
-        throw new UnauthorizedException();
+        if (user == null)
+        {
+            _logger.LogWarning("HttpContext or User is null in GetId.");
+            throw new UnauthorizedException();
+        }
+
+        // Using FindFirst avoids extra allocations from LINQ
+        Claim? claim = user.FindFirst(_idClaim);
+
+        if (claim == null || claim.Value.IsNullOrEmpty())
+        {
+            _logger.LogWarning("User claim for object identifier is missing in GetId.");
+            throw new UnauthorizedException();
+        }
+
+        _cachedUserId = claim.Value;
+        return _cachedUserId;
     }
 
     public string? GetIdSafe()
     {
-        if (_idResolved)
+        if (_cachedUserId != null)
             return _cachedUserId;
 
-        ClaimsPrincipal? user = HttpContextAccessor.HttpContext?.User;
+        HttpContext? httpContext = HttpContextAccessor.HttpContext;
+        ClaimsPrincipal? user = httpContext?.User;
 
-        // If we run before auth middleware (or outside an HTTP request), don't cache "missing".
-        // This lets subsequent calls later in the pipeline resolve successfully.
-        if (user?.Identity?.IsAuthenticated != true)
-            return null;
-
-        Claim? claim =
-            user.FindFirst(IdClaim) ??
-            user.FindFirst(OidClaim) ??
-            user.FindFirst(ClaimTypes.NameIdentifier) ??
-            user.FindFirst(SubjectClaim);
+        Claim? claim = user?.FindFirst(_idClaim);
 
         if (claim == null || claim.Value.IsNullOrEmpty())
-        {
-            // User is authenticated but the identifier claim is genuinely missing; cache the miss.
-            _idResolved = true;
             return null;
-        }
 
         _cachedUserId = claim.Value;
-        _idResolved = true;
         return _cachedUserId;
     }
 
     public string GetEmail()
     {
-        string? email = GetEmailSafe();
-
-        if (email.HasContent())
-            return email!;
-
-        _logger.LogWarning("User claim for email is missing in GetEmail.");
-        throw new UnauthorizedException();
-    }
-
-    public string? GetEmailSafe()
-    {
-        if (_emailResolved)
+        if (_cachedUserEmail != null)
             return _cachedUserEmail;
 
-        ClaimsPrincipal? user = HttpContextAccessor.HttpContext?.User;
+        HttpContext? httpContext = HttpContextAccessor.HttpContext;
+        ClaimsPrincipal? user = httpContext?.User;
 
-        // if we're not authenticated yet / no context, don't cache a miss.
-        if (user?.Identity?.IsAuthenticated != true)
-            return null;
+        if (user == null)
+        {
+            _logger.LogWarning("HttpContext or User is null in GetEmail.");
+            throw new UnauthorizedException();
+        }
 
-        Claim? claim = user.FindFirst(EmailClaim);
+        Claim? claim = user.FindFirst(_emailClaim);
 
         if (claim == null || claim.Value.IsNullOrEmpty())
         {
-            claim = user.FindFirst(EmailsFallbackClaim);
+            // Backwards compat...
+            // Note: if multiple emails exist, this returns the first one.
+            claim = user.FindFirst("emails");
 
             if (claim == null || claim.Value.IsNullOrEmpty())
             {
-                // Authenticated, but genuinely missing -> cache miss.
-                _emailResolved = true;
-                return null;
+                _logger.LogWarning("User claim for emails is missing in GetEmail.");
+                throw new UnauthorizedException();
             }
         }
 
         _cachedUserEmail = claim.Value;
-        _emailResolved = true;
         return _cachedUserEmail;
     }
 
     public string GetJwt()
     {
-        string? jwt = GetJwtSafe();
-
-        if (jwt.HasContent())
-            return jwt!;
-
-        _logger.LogWarning("Authorization header is missing/invalid in GetJwt.");
-        throw new UnauthorizedException();
-    }
-
-    public string? GetJwtSafe()
-    {
-        if (_jwtResolved)
+        if (_cachedJwt != null)
             return _cachedJwt;
 
         HttpContext? httpContext = HttpContextAccessor.HttpContext;
-
-        // If no context yet, don't cache a miss.
         if (httpContext == null)
-            return null;
-
-        if (!httpContext.Request.Headers.TryGetValue(AuthorizationHeaderName, out StringValues authHeader) || authHeader.Count == 0)
-            return null; // don't cache a miss
-
-        string? headerValue = authHeader[0];
-
-        if (headerValue.IsNullOrEmpty())
         {
-            // Header exists but empty -> cache miss (this is a real miss for this request)
-            _jwtResolved = true;
-            return null;
+            _logger.LogWarning("HttpContext is null in GetJwt.");
+            throw new UnauthorizedException();
         }
 
-        // More tolerant bearer parsing than StartsWith("Bearer ")
-        // Handles: "Bearer    token", "bearer token", leading/trailing whitespace.
-        ReadOnlySpan<char> s = headerValue.AsSpan().Trim();
-
-        if (s.Length >= 6 && s[..6].Equals("Bearer".AsSpan(), StringComparison.OrdinalIgnoreCase))
+        if (!httpContext.Request.Headers.TryGetValue("Authorization", out StringValues authHeader) || authHeader.Count == 0)
         {
-            s = s[6..].TrimStart(); // skip scheme, then whitespace
-
-            if (!s.IsEmpty)
-            {
-                _cachedJwt = new string(s); // allocation, but same as returning substring
-                _jwtResolved = true;
-                return _cachedJwt;
-            }
-
-            _jwtResolved = true;
-            return null;
+            _logger.LogWarning("Authorization header is missing or empty in GetJwt.");
+            throw new UnauthorizedException();
         }
 
-        // Fallback for odd formats
-        if (AuthenticationHeaderValue.TryParse(headerValue, out AuthenticationHeaderValue? parsed) &&
-            !parsed.Parameter.IsNullOrEmpty())
+        // Use the first header value to avoid extra string allocations
+        string? headerValueString = authHeader[0];
+
+        if (AuthenticationHeaderValue.TryParse(headerValueString, out AuthenticationHeaderValue? headerValue) && !headerValue.Parameter.IsNullOrEmpty())
         {
-            _cachedJwt = parsed.Parameter;
-            _jwtResolved = true;
+            _cachedJwt = headerValue.Parameter;
             return _cachedJwt;
         }
 
-        // Header present but invalid -> cache miss (real miss for this request)
-        _jwtResolved = true;
-        return null;
+        _logger.LogWarning("Failed to parse JWT from Authorization header in GetJwt.");
+        throw new UnauthorizedException();
     }
 
     public string? GetApiKey()
     {
         HttpContext? httpContext = HttpContextAccessor.HttpContext;
-
         if (httpContext == null)
             return null;
 
         if (httpContext.Request.Headers.TryGetValue(AuthConstants.XApiKey, out StringValues apiKey) && apiKey.Count > 0)
+        {
             return apiKey[0];
+        }
 
         return null;
-    }
-
-    // Overload avoids params array allocation for the common case.
-    public bool HasRole(string role)
-    {
-        ClaimsPrincipal? user = HttpContextAccessor.HttpContext?.User;
-        return user != null && user.IsInRole(role);
     }
 
     public bool HasRoles(params string[] roles)
     {
         ClaimsPrincipal? user = HttpContextAccessor.HttpContext?.User;
-
         if (user == null)
             return false;
 
+        // Iterate explicitly instead of using LINQ.All to reduce lambda overhead.
         for (var i = 0; i < roles.Length; i++)
         {
             if (!user.IsInRole(roles[i]))
@@ -252,8 +190,7 @@ public class UserContext : IUserContext
         if (_cachedIsAdmin.HasValue)
             return _cachedIsAdmin.Value;
 
-        // Avoid params allocation here
-        _cachedIsAdmin = HasRole("Admin");
+        _cachedIsAdmin = HasRoles("Admin");
         return _cachedIsAdmin.Value;
     }
 
