@@ -172,6 +172,7 @@ public class UserContext : IUserContext
     public bool HasRoles(params string[] roles)
     {
         ClaimsPrincipal? user = HttpContextAccessor.HttpContext?.User;
+
         if (user == null)
             return false;
 
@@ -183,6 +184,16 @@ public class UserContext : IUserContext
         }
 
         return true;
+    }
+
+    public bool HasRole(string role)
+    {
+        ClaimsPrincipal? user = HttpContextAccessor.HttpContext?.User;
+
+        if (user == null)
+            return false;
+
+        return user.IsInRole(role);
     }
 
     public bool IsAdmin()
