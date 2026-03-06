@@ -78,4 +78,10 @@ public interface IUserContext
     /// <returns>null if the key is not present</returns>
     [Pure]
     string? GetApiKey();
+
+    /// <summary>
+    /// Sets an API key override for the current context instance.
+    /// </summary>
+    /// <param name="apiKey">The API key to use.</param>
+    void SetApiKey(string apiKey);
 }

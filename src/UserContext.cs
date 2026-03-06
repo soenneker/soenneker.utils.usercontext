@@ -21,10 +21,12 @@ public class UserContext : IUserContext
     private string? _cachedUserId;
     private string? _cachedUserEmail;
     private string? _cachedJwt;
+    private string? _cachedApiKey;
     private bool? _cachedIsAdmin;
 
     private const string _idClaim = "http://schemas.microsoft.com/identity/claims/objectidentifier";
     private const string _emailClaim = "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress";
+
     public UserContext(IHttpContextAccessor httpContextAccessor, ILogger<UserContext> logger)
     {
         HttpContextAccessor = httpContextAccessor;
@@ -47,6 +49,18 @@ public class UserContext : IUserContext
         _cachedIsAdmin = true;
     }
 
+    /// <summary>
+    /// Sets an API key override for the current context instance.
+    /// This does not modify the underlying HTTP request headers.
+    /// </summary>
+    public void SetApiKey(string apiKey)
+    {
+        if (apiKey.IsNullOrWhiteSpace())
+            throw new ArgumentException("API key cannot be null or whitespace.", nameof(apiKey));
+
+        _cachedApiKey = apiKey;
+    }
+
     public string GetId()
     {
         if (_cachedUserId != null)
@@ -61,7 +75,6 @@ public class UserContext : IUserContext
             throw new UnauthorizedException();
         }
 
-        // Using FindFirst avoids extra allocations from LINQ
         Claim? claim = user.FindFirst(_idClaim);
 
         if (claim == null || claim.Value.IsNullOrEmpty())
@@ -109,8 +122,6 @@ public class UserContext : IUserContext
 
         if (claim == null || claim.Value.IsNullOrEmpty())
         {
-            // Backwards compat...
-            // Note: if multiple emails exist, this returns the first one.
             claim = user.FindFirst("emails");
 
             if (claim == null || claim.Value.IsNullOrEmpty())
@@ -142,10 +153,10 @@ public class UserContext : IUserContext
             throw new UnauthorizedException();
         }
 
-        // Use the first header value to avoid extra string allocations
         string? headerValueString = authHeader[0];
 
-        if (AuthenticationHeaderValue.TryParse(headerValueString, out AuthenticationHeaderValue? headerValue) && !headerValue.Parameter.IsNullOrEmpty())
+        if (AuthenticationHeaderValue.TryParse(headerValueString, out AuthenticationHeaderValue? headerValue) &&
+            !headerValue.Parameter.IsNullOrEmpty())
         {
             _cachedJwt = headerValue.Parameter;
             return _cachedJwt;
@@ -157,13 +168,17 @@ public class UserContext : IUserContext
 
     public string? GetApiKey()
     {
+        if (_cachedApiKey != null)
+            return _cachedApiKey;
+
         HttpContext? httpContext = HttpContextAccessor.HttpContext;
         if (httpContext == null)
             return null;
 
         if (httpContext.Request.Headers.TryGetValue(AuthConstants.XApiKey, out StringValues apiKey) && apiKey.Count > 0)
         {
-            return apiKey[0];
+            _cachedApiKey = apiKey[0];
+            return _cachedApiKey;
         }
 
         return null;
@@ -176,7 +191,6 @@ public class UserContext : IUserContext
         if (user == null)
             return false;
 
-        // Iterate explicitly instead of using LINQ.All to reduce lambda overhead.
         for (var i = 0; i < roles.Length; i++)
         {
             if (!user.IsInRole(roles[i]))
