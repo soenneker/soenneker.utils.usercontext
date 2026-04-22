@@ -1,20 +1,19 @@
 using Soenneker.Utils.UserContext.Abstract;
-using Soenneker.Tests.FixturedUnit;
-using Xunit;
+using Soenneker.Tests.HostedUnit;
 
 namespace Soenneker.Utils.UserContext.Tests;
 
-[Collection("Collection")]
-public class UserContextTests : FixturedUnitTest
+[ClassDataSource<Host>(Shared = SharedType.PerTestSession)]
+public class UserContextTests : HostedUnitTest
 {
     private readonly IUserContext _util;
 
-    public UserContextTests(Fixture fixture, ITestOutputHelper output) : base(fixture, output)
+    public UserContextTests(Host host) : base(host)
     {
         _util = Resolve<IUserContext>(true);
     }
 
-    [Fact]
+    [Test]
     public void Default()
     {
 
