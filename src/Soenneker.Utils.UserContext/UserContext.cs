@@ -39,9 +39,6 @@ public class UserContext : IUserContext
         _logger = logger;
     }
 
-    /// <summary>
-    /// Sets an internal context for system or service use.
-    /// </summary>
     public void SetInternalContext(string domain)
     {
         _cachedUserId = Guid.Empty.ToString();
@@ -49,10 +46,6 @@ public class UserContext : IUserContext
         _cachedIsAdmin = true;
     }
 
-    /// <summary>
-    /// Sets an API key override for the current context instance.
-    /// This does not modify the underlying HTTP request headers.
-    /// </summary>
     public void SetApiKey(string apiKey)
     {
         if (apiKey.IsNullOrWhiteSpace())

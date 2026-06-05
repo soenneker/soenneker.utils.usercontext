@@ -16,6 +16,9 @@ public interface IUserContext
     /// </summary>
     IHttpContextAccessor HttpContextAccessor { get; set; }
 
+    /// <summary>
+    /// Sets an internal context for system or service use.
+    /// </summary>
     void SetInternalContext(string domain);
 
     /// <summary>
@@ -47,6 +50,11 @@ public interface IUserContext
     [Pure]
     string GetJwt();
 
+    /// <summary>
+    /// Executes the has role operation.
+    /// </summary>
+    /// <param name="role">The role.</param>
+    /// <returns>A value indicating whether the operation succeeded.</returns>
     [Pure]
     bool HasRole(string role);
 

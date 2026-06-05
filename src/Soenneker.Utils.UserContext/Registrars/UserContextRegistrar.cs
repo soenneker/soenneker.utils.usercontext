@@ -9,6 +9,11 @@ namespace Soenneker.Utils.UserContext.Registrars;
 /// </summary>
 public static class UserContextRegistrar
 {
+    /// <summary>
+    /// Adds user context as scoped.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <returns>The result of the operation.</returns>
     public static IServiceCollection AddUserContextAsScoped(this IServiceCollection services)
     {
         services.AddHttpContextAccessor()
