@@ -24,8 +24,11 @@ public class UserContext : IUserContext
     private string? _cachedApiKey;
     private bool? _cachedIsAdmin;
 
-    private const string _idClaim = "http://schemas.microsoft.com/identity/claims/objectidentifier";
+    private const string _objectIdentifierClaim = "http://schemas.microsoft.com/identity/claims/objectidentifier";
+    private const string _oidClaim = "oid";
+    private const string _subjectClaim = "sub";
     private const string _emailClaim = "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress";
+    private static readonly string[] _idClaims = [_objectIdentifierClaim, _oidClaim, ClaimTypes.NameIdentifier, _subjectClaim];
 
     public UserContext(IHttpContextAccessor httpContextAccessor, ILogger<UserContext> logger)
     {
@@ -68,7 +71,7 @@ public class UserContext : IUserContext
             throw new UnauthorizedException();
         }
 
-        Claim? claim = user.FindFirst(_idClaim);
+        Claim? claim = GetFirstIdClaim(user);
 
         if (claim == null || claim.Value.IsNullOrEmpty())
         {
@@ -88,7 +91,7 @@ public class UserContext : IUserContext
         HttpContext? httpContext = HttpContextAccessor.HttpContext;
         ClaimsPrincipal? user = httpContext?.User;
 
-        Claim? claim = user?.FindFirst(_idClaim);
+        Claim? claim = user == null ? null : GetFirstIdClaim(user);
 
         if (claim == null || claim.Value.IsNullOrEmpty())
             return null;
@@ -213,4 +216,17 @@ public class UserContext : IUserContext
     }
 
     public bool IsNotAdmin() => !IsAdmin();
+
+    private static Claim? GetFirstIdClaim(ClaimsPrincipal user)
+    {
+        for (var i = 0; i < _idClaims.Length; i++)
+        {
+            Claim? claim = user.FindFirst(_idClaims[i]);
+
+            if (claim?.Value.IsNullOrEmpty() == false)
+                return claim;
+        }
+
+        return null;
+    }
 }
