@@ -26,12 +26,14 @@ public interface IUserContext
     /// Throws an auth error if no user id is found
     /// </summary>
     /// <exception cref="UnauthorizedException"></exception>
+    /// <returns>Grabs the user id from the current context Throws an auth error if no user id is found.</returns>
     [Pure]
     string GetId();
 
     /// <summary>
     /// Grabs the user id from the current context. If it's not found it returns null.
     /// </summary>
+    /// <returns>Grabs the user id from the current context. If it's not found it returns null.</returns>
     [Pure]
     string? GetIdSafe();
 
@@ -47,14 +49,15 @@ public interface IUserContext
     /// Throws an auth error if not found
     /// </summary>
     /// <exception cref="UnauthorizedException"></exception>
+    /// <returns>Grabs the JWT from the current context Throws an auth error if not found.</returns>
     [Pure]
     string GetJwt();
 
     /// <summary>
-    /// Executes the has role operation.
+    /// Determines whether the current authenticated principal belongs to a role.
     /// </summary>
-    /// <param name="role">The role.</param>
-    /// <returns>A value indicating whether the operation succeeded.</returns>
+    /// <param name="role">The role name.</param>
+    /// <returns>True when the principal has the role.</returns>
     [Pure]
     bool HasRole(string role);
 
@@ -70,6 +73,7 @@ public interface IUserContext
     /// <summary>
     /// Shorthand for HasUserRole(Admin). Will NOT throw an exception.
     /// </summary>
+    /// <returns>Shorthand for HasUserRole(Admin). Will NOT throw an exception.</returns>
     [Pure]
     bool IsAdmin();
 

@@ -10,10 +10,10 @@ namespace Soenneker.Utils.UserContext.Registrars;
 public static class UserContextRegistrar
 {
     /// <summary>
-    /// Adds user context as scoped.
+    /// Registers the user-context abstraction and implementation with scoped lifetime.
     /// </summary>
-    /// <param name="services">The service collection.</param>
-    /// <returns>The result of the operation.</returns>
+    /// <param name="services">The service collection to resolve or update.</param>
+    /// <returns>The same service collection for chaining.</returns>
     public static IServiceCollection AddUserContextAsScoped(this IServiceCollection services)
     {
         services.AddHttpContextAccessor()
