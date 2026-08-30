@@ -38,9 +38,10 @@ public interface IUserContext
     string? GetIdSafe();
 
     /// <summary>
-    /// Retrieves the email address associated with the current instance.
+    /// Retrieves the email address from the current context.
     /// </summary>
-    /// <returns>A string containing the email address. The value may be empty if no email address is set.</returns>
+    /// <returns>The non-empty email claim value.</returns>
+    /// <exception cref="UnauthorizedException">Thrown when no current user or non-empty email claim is available.</exception>
     [Pure]
     string GetEmail();
 
@@ -62,11 +63,11 @@ public interface IUserContext
     bool HasRole(string role);
 
     /// <summary>
-    /// Determines whether the current principal is assigned any of the specified roles.
+    /// Determines whether the current principal is assigned every specified role.
     /// </summary>
     /// <param name="roles">An array of role names to check against the current principal. Each element represents a role to evaluate.
     /// Cannot be null or contain null elements.</param>
-    /// <returns>true if the current principal is in at least one of the specified roles; otherwise, false.</returns>
+    /// <returns><see langword="true"/> if the current principal is in every specified role; otherwise, <see langword="false"/>. An empty role array returns <see langword="true"/> when a current user exists.</returns>
     [Pure]
     bool HasRoles(params string[] roles);
 
