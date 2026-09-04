@@ -11,6 +11,7 @@ using Soenneker.Extensions.String;
 
 namespace Soenneker.Utils.UserContext;
 
+/// <inheritdoc cref="IUserContext" />
 public class UserContext : IUserContext
 {
     public IHttpContextAccessor HttpContextAccessor { get; set; }
