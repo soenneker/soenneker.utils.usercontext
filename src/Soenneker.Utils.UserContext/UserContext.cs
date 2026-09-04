@@ -28,6 +28,7 @@ public class UserContext : IUserContext
     private const string _oidClaim = "oid";
     private const string _subjectClaim = "sub";
     private const string _emailClaim = "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress";
+    private const string _emptyGuid = "00000000-0000-0000-0000-000000000000";
     private static readonly string[] _idClaims = [_objectIdentifierClaim, _oidClaim, ClaimTypes.NameIdentifier, _subjectClaim];
 
     public UserContext(IHttpContextAccessor httpContextAccessor, ILogger<UserContext> logger)
@@ -44,7 +45,7 @@ public class UserContext : IUserContext
 
     public void SetInternalContext(string domain)
     {
-        _cachedUserId = Guid.Empty.ToString();
+        _cachedUserId = _emptyGuid;
         _cachedUserEmail = $"internal@{domain}";
         _cachedIsAdmin = true;
     }
@@ -211,7 +212,7 @@ public class UserContext : IUserContext
         if (_cachedIsAdmin.HasValue)
             return _cachedIsAdmin.Value;
 
-        _cachedIsAdmin = HasRoles("Admin");
+        _cachedIsAdmin = HasRole("Admin");
         return _cachedIsAdmin.Value;
     }
 
