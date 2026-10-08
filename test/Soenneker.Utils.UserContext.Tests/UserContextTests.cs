@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging.Abstractions;
 using System.Security.Claims;
 using System.Threading.Tasks;
+using System.Threading;
 
 namespace Soenneker.Utils.UserContext.Tests;
 
@@ -18,7 +19,7 @@ public class UserContextTests : HostedUnitTest
     }
 
     [Test]
-    public async ValueTask GetId_should_read_supported_user_id_claims()
+    public async ValueTask GetId_should_read_supported_user_id_claims(CancellationToken cancellationToken)
     {
         (string Type, string Value)[] claims =
         [
@@ -37,7 +38,7 @@ public class UserContextTests : HostedUnitTest
     }
 
     [Test]
-    public async ValueTask GetIdSafe_should_read_supported_user_id_claims()
+    public async ValueTask GetIdSafe_should_read_supported_user_id_claims(CancellationToken cancellationToken)
     {
         var userContext = CreateUserContext(new Claim("sub", "subject-id"));
 
